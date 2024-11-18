@@ -234,13 +234,40 @@ namespace Bidhub.Controllers
             return Ok(new { token });
         }
 
+        //    private string GenerateJwtToken(User user)
+        //    {
+        //        var claims = new[]
+        //        {
+        //    new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+        //    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        //    new Claim(ClaimTypes.Email, user.Email)
+        //};
+
+        //        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+        //        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        //        var token = new JwtSecurityToken(
+        //            issuer: _config["Jwt:Issuer"],
+        //            audience: _config["Jwt:Audience"],
+        //            claims: claims,
+        //            expires: DateTime.Now.AddMinutes(60),
+        //            signingCredentials: creds);
+
+        //        return new JwtSecurityTokenHandler().WriteToken(token);
+        //    }
+
         private string GenerateJwtToken(User user)
         {
+            // Retrieve AuctioneerId associated with the user, if it exists
+            var auctioneer = _userContext.Auctioneers.FirstOrDefault(a => a.UserId == user.UserId);
+            var auctioneerId = auctioneer?.AuctioneerId.ToString() ?? string.Empty;
+
             var claims = new[]
             {
         new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new Claim(ClaimTypes.Email, user.Email)
+        new Claim(ClaimTypes.Email, user.Email),
+        new Claim("AuctioneerId", auctioneerId) // Add AuctioneerId claim
     };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
@@ -255,6 +282,9 @@ namespace Bidhub.Controllers
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
+
+
 
 
     }

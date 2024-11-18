@@ -1,6 +1,6 @@
 ﻿namespace Bidhub.Dto
 {
-    public class ProductsDTO
+    public class ProductsDto
     {
         public string ProductName { get; set; }
         public string ReasonForAuction { get; set; }

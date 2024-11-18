@@ -3,147 +3,168 @@ using Bidhub.Dto;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection.Metadata;
+using Microsoft.AspNetCore.Authorization;
 
-[ApiController]
-[Route("api/[controller]")]
-public class ProductsController : ControllerBase
+namespace Bidhub.Controllers 
 {
-    private readonly UserContext _userContext;
-
-    public ProductsController(UserContext context)
+    //[Authorize]
+    [ApiController]
+    [Route("api/[controller]")]
+    public class ProductsController : ControllerBase
     {
-        _userContext = context;
-    }
+        private readonly UserContext _userContext;
 
 
-    [HttpPost]
-    public async Task<IActionResult> CreateProduct([FromBody] ProductsDTO productDTO)
-    {
-
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        var product = new Product
+        public ProductsController(UserContext context)
         {
-            ProductName = productDTO.ProductName,
-            ReasonForAuction = productDTO.ReasonForAuction,
-            OwnerName = productDTO.OwnersName,
-            OwnerPhoneNo = productDTO.OwnerPhoneNo,
-            ReservePrice = productDTO.ReservePrice,
-            Location = productDTO.Location, 
-        };
+            _userContext = context;
+        }
 
-        
-        _userContext.Products.Add(product);
-        await _userContext.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetProduct), new { id = product.ProductId }, product);
-    }
-
-    // GET: api/Auctioneers
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductsDTO>>> GetProduct()
-    {
-        var product = await _userContext.Products
-            .Select(a => new ProductsDTO
+        //[Authorize]
+        [HttpPost("create-product")]                                        
+        public async Task<IActionResult> CreateProduct([FromBody] ProductsDto productsDto)
             {
-                ProductName = a.ProductName,
-                ReasonForAuction = a.ReasonForAuction,
-                OwnersName = a.OwnerName,
-                OwnerPhoneNo = a.OwnerPhoneNo,
-                ReservePrice = a.ReservePrice,
-                Location = a.Location
-            })
-            .ToListAsync();
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+               
 
-        return Ok(product);
-    }
+            //// Retrieve the AuctioneerId from JWT claims
+            //var auctioneerIdClaim = User.Claims.FirstOrDefault(c => c.Type == "AuctioneerId");
+            //if (auctioneerIdClaim == null)
+            //    return Unauthorized(new { message = "Auctioneer ID is missing in token." });
 
-    // GET: api/Auctioneers/5
-    [HttpGet("{id}")]
-    public async Task<ActionResult<ProductsDTO>> GetProduct(int id)
-    {
-        var product = await _userContext.Products.FindAsync(id);
+            //if (!int.TryParse(auctioneerIdClaim.Value, out int auctioneerId))
+            //    return BadRequest(new { message = "Invalid Auctioneer ID format." });
 
-        if (product == null)
-        {
-            return NotFound();
-        }
+            //// Check if the Auctioneer exists
+            //var auctioneerExists = await _userContext.Auctioneers.AnyAsync(a => a.AuctioneerId == auctioneerId);
+            //if (!auctioneerExists)
+            //    return BadRequest(new { message = "Auctioneer not found." });
 
-        var productDTO = new ProductsDTO
-        {
+            var product = new Product
+            {
+                ProductName = productsDto.ProductName,
+                ReasonForAuction = productsDto.ReasonForAuction,
+                OwnerName = productsDto.OwnersName,
+                OwnerPhoneNo = productsDto.OwnerPhoneNo,
+                ReservePrice = productsDto.ReservePrice,
+                Location = productsDto.Location,
+                
+            };
 
-            ProductName = product.ProductName,
-            ReasonForAuction = product.ReasonForAuction,
-            OwnersName = product.OwnerName,
-            OwnerPhoneNo = product.OwnerPhoneNo,
-            ReservePrice = product.ReservePrice,
-            Location = product.Location
-        };
-
-        return Ok(productDTO);
-    }
-
-    // PUT: api/Auctioneers/5
-    [HttpPut("{id}")]
-    public async Task<IActionResult> PutProduct(int id, ProductsDTO productDTO)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        var products = await _userContext.Products.FindAsync(id);
-        if (products == null)
-        {
-            return NotFound();
-        }
-
-        products.ProductName = productDTO.ProductName;
-        products.ReasonForAuction = productDTO.ReasonForAuction;
-        products.OwnerName = productDTO.OwnersName;
-        products.OwnerPhoneNo = productDTO.OwnerPhoneNo;
-        products.ReservePrice = productDTO.ReservePrice;
-        products.Location = productDTO.Location;
-
-        _userContext.Entry(products).State = EntityState.Modified;
-
-        try
-        {
+            _userContext.Products.Add(product);
             await _userContext.SaveChangesAsync();
+
+            return CreatedAtAction(nameof(GetProduct), new { id = product.ProductId }, product);
         }
-        catch (DbUpdateConcurrencyException)
+
+        // GET: api/Auctioneers
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<ProductsDto>>> GetProduct()
         {
-            if (!_userContext.Products.Any(e => e.ProductId == id))
+            var product = await _userContext.Products
+                .Select(a => new ProductsDto
+                {
+                    ProductName = a.ProductName,
+                    ReasonForAuction = a.ReasonForAuction,
+                    OwnersName = a.OwnerName,
+                    OwnerPhoneNo = a.OwnerPhoneNo,
+                    ReservePrice = a.ReservePrice,
+                    Location = a.Location
+                })
+                .ToListAsync();
+
+            return Ok(product);
+        }
+
+        // GET: api/Auctioneers/5
+        [HttpGet("{id}")]
+        public async Task<ActionResult<ProductsDto>> GetProduct(int id)
+        {
+            var product = await _userContext.Products.FindAsync(id);
+
+            if (product == null)
             {
                 return NotFound();
             }
-            else
+
+            var productDTO = new ProductsDto
             {
-                throw;
-            }
+
+                ProductName = product.ProductName,
+                ReasonForAuction = product.ReasonForAuction,
+                OwnersName = product.OwnerName,
+                OwnerPhoneNo = product.OwnerPhoneNo,
+                ReservePrice = product.ReservePrice,
+                Location = product.Location
+            };
+
+            return Ok(productDTO);
         }
 
-        return NoContent();
-    }
-
-    // DELETE: api/Auctioneers/5
-    [HttpDelete("{id}")]
-    public async Task<IActionResult> DeleteProduct(int id)
-    {
-        var products = await _userContext.Products.FindAsync(id);
-        if (products == null)
+        // PUT: api/Auctioneers/5
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutProduct(int id, ProductsDto productDTO)
         {
-            return NotFound();
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var products = await _userContext.Products.FindAsync(id);
+            if (products == null)
+            {
+                return NotFound();
+            }
+
+            products.ProductName = productDTO.ProductName;
+            products.ReasonForAuction = productDTO.ReasonForAuction;
+            products.OwnerName = productDTO.OwnersName;
+            products.OwnerPhoneNo = productDTO.OwnerPhoneNo;
+            products.ReservePrice = productDTO.ReservePrice;
+            products.Location = productDTO.Location;
+
+            _userContext.Entry(products).State = EntityState.Modified;
+
+            try
+            {
+                await _userContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_userContext.Products.Any(e => e.ProductId == id))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return NoContent();
         }
 
-        _userContext.Products.Remove(products);
-        await _userContext.SaveChangesAsync();
+        // DELETE: api/Auctioneers/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteProduct(int id)
+        {
+            var products = await _userContext.Products.FindAsync(id);
+            if (products == null)
+            {
+                return NotFound();
+            }
 
-        return NoContent();
+            _userContext.Products.Remove(products);
+            await _userContext.SaveChangesAsync();
+
+            return NoContent();
+        }
+
     }
-
-
 
 
 }
