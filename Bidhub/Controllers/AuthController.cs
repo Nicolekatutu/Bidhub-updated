@@ -11,11 +11,14 @@ using System.Security.Cryptography;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Bidhub.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+   
+
     public class AuthController : ControllerBase
     {
         private readonly SignInManager<User> _signInManager;
@@ -39,18 +42,26 @@ namespace Bidhub.Controllers
         [HttpPost("register-bidder")]
         public async Task<IActionResult> RegisterBidder([FromBody] BidderRegisterDto model)
         {
+            // Check if the model is valid
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
 
+            // Password confirmation check
+            if (model.Password != model.ConfirmPassword)
+            {
+                return BadRequest(new { message = "Password and Confirm Password do not match." });
+            }
+
+            // Create user
             var user = new User
             {
                 FirstName = model.FirstName,
                 LastName = model.LastName,
                 UserName = model.UserName,
                 Email = model.Email,
-                Password = model.Password,
+                Password = model.Password,  
                 PhysicalAddress = model.PhysicalAddress,
                 PhoneNumber = model.PhoneNumber
             };
@@ -61,6 +72,7 @@ namespace Bidhub.Controllers
                 return BadRequest(result.Errors);
             }
 
+            // Create bidder entry
             var bidder = new Bidders
             {
                 UserId = user.Id,
@@ -151,33 +163,91 @@ namespace Bidhub.Controllers
 
         }
 
-        [HttpPost("verify-otp")]
-        public async Task<IActionResult> VerifyOtp(string email, string otp)
-        {
+        //[Authorize]
+        //[HttpPost("verify-otp")]
 
-            var user = await _userContext.Users.SingleOrDefaultAsync(u => u.Email == email);
+        //public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto dto)
+        //{
+        //    if (string.IsNullOrEmpty(dto?.Otp))
+        //    {
+        //        return BadRequest(new { message = "The OTP field is required." });
+        //    }
+
+        //    var email = User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+        //    if (string.IsNullOrEmpty(email))
+        //    {
+        //        return Unauthorized(new { message = "Invalid token. Email not found." });
+        //    }
+
+
+        //    var user = await _userContext.Users.SingleOrDefaultAsync(u => u.Email == email);
+        //    if (user == null)
+        //    {
+        //        return NotFound(new { message = "User not found." });
+        //    }
+
+
+        //    var otpEntry = await _userContext.UserOtps
+        //        .Where(o => o.UserId == user.UserId && o.OtpCode == dto.Otp)
+        //        .OrderByDescending(o => o.ExpiryTime)
+        //        .FirstOrDefaultAsync();
+
+        //    if (otpEntry == null || otpEntry.ExpiryTime < DateTime.UtcNow)
+        //    {
+        //        return BadRequest(new { message = "Invalid or expired OTP." });
+        //    }
+
+        //    // Mark the user as verified
+        //    user.IsVerified = true;
+        //    var result = await _userManager.UpdateAsync(user);
+
+        //    if (!result.Succeeded)
+        //    {
+        //        return StatusCode(500, new { message = "Failed to update user verification status." });
+        //    }
+
+        //    return Ok(new { message = "User verified successfully." });
+        //}
+
+
+
+        [HttpPost("verify-otp")]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Otp))
+            {
+                return BadRequest(new { message = "Email and OTP are required." });
+            }
+
+            var user = await _userContext.Users.SingleOrDefaultAsync(u => u.Email == dto.Email);
             if (user == null)
             {
-                return NotFound(new { message = "User not found" });
+                return NotFound(new { message = "User not found." });
             }
 
             var otpEntry = await _userContext.UserOtps
-                 .Where(o => o.UserId == user.Id && o.OtpCode == otp)
-                 .OrderByDescending(o => o.ExpiryTime)
-                 .FirstOrDefaultAsync();
-
+                .Where(o => o.UserId == user.Id && o.OtpCode == dto.Otp)
+                .OrderByDescending(o => o.ExpiryTime)
+                .FirstOrDefaultAsync();
 
             if (otpEntry == null || otpEntry.ExpiryTime < DateTime.UtcNow)
             {
-                return BadRequest(new { message = "Invalid or expired OTP" });
+                return BadRequest(new { message = "Invalid or expired OTP." });
             }
 
             // OTP is valid, mark user as verified
             user.IsVerified = true;
             var updateResult = await _userManager.UpdateAsync(user);
 
-            return Ok(new { message = "User verified successfully" });
+            if (!updateResult.Succeeded)
+            {
+                return StatusCode(500, new { message = "Failed to update user verification status." });
+            }
+
+            return Ok(new { message = "User verified successfully." });
         }
+
 
 
         private string GenerateOTP()
@@ -256,18 +326,16 @@ namespace Bidhub.Controllers
         //        return new JwtSecurityTokenHandler().WriteToken(token);
         //    }
 
+
+
         private string GenerateJwtToken(User user)
         {
-            // Retrieve AuctioneerId associated with the user, if it exists
-            var auctioneer = _userContext.Auctioneers.FirstOrDefault(a => a.UserId == user.UserId);
-            var auctioneerId = auctioneer?.AuctioneerId.ToString() ?? string.Empty;
-
             var claims = new[]
             {
         new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
         new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new Claim(ClaimTypes.Email, user.Email),
-        new Claim("AuctioneerId", auctioneerId) // Add AuctioneerId claim
+        new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+        new Claim(ClaimTypes.Email, user.Email), // Ensure this claim is added
     };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
@@ -277,11 +345,12 @@ namespace Bidhub.Controllers
                 issuer: _config["Jwt:Issuer"],
                 audience: _config["Jwt:Audience"],
                 claims: claims,
-                expires: DateTime.Now.AddMinutes(60),
+                expires: DateTime.UtcNow.AddMinutes(60),
                 signingCredentials: creds);
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
+
 
 
 

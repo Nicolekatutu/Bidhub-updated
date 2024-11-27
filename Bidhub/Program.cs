@@ -1,12 +1,10 @@
 using Bidhub.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using Microsoft.AspNetCore.Identity;
-using System.Security.Principal;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -33,7 +31,7 @@ builder.Services.AddAuthentication(options =>
 
 // (Add Identity) Register Identity services
 builder.Services.AddIdentity<User, IdentityRole<Guid>>()
-    .AddEntityFrameworkStores<UserContext> ()
+    .AddEntityFrameworkStores<UserContext>()
     .AddDefaultTokenProviders();
 
 
@@ -57,6 +55,16 @@ builder.Services.AddAuthorization();
 builder.Services.AddDbContext<UserContext>(options =>
 options.UseSqlServer(builder.Configuration.GetConnectionString("UserContext"))
 );
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", builder =>
+    {
+        builder.WithOrigins("http://localhost:5173") // React app URL
+               .AllowAnyHeader()
+               .AllowAnyMethod();
+    });
+});
 
 builder.Services.AddSwaggerGen(s =>
 {
@@ -104,6 +112,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+app.UseCors("AllowReactApp");
 
 app.UseHttpsRedirection();
 
