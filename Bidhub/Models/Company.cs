@@ -9,7 +9,7 @@ namespace Bidhub.Models
         public string? CompanyName { get; set; }
         public string? CompanyUrl { get; set; } 
         public string? Location { get; set; }
-        public string? Status { get; set; }
+        public Boolean? Status { get; set; }
         public DateTime? DateAdded { get; set; }
 
         public ICollection<Auctioneer> Auctioneers { get; set; } 

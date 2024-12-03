@@ -2,8 +2,8 @@
 using Bidhub.Dto;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Reflection.Metadata;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Bidhub.Controllers 
 {
@@ -14,36 +14,33 @@ namespace Bidhub.Controllers
     {
         private readonly UserContext _userContext;
 
-
-        public ProductsController(UserContext context)
+        public ProductsController(UserContext usercontext)
         {
-            _userContext = context;
+            _userContext = usercontext;
         }
 
-
-        //[Authorize]
-        [HttpPost("create-product")]                                        
+        [Authorize]
+        [HttpPost("create-product")]
         public async Task<IActionResult> CreateProduct([FromBody] ProductsDto productsDto)
-            {
+        {
+            // Automatic model validation via [ApiController]
             if (!ModelState.IsValid)
-            {
                 return BadRequest(ModelState);
-            }
-               
 
-            //// Retrieve the AuctioneerId from JWT claims
-            //var auctioneerIdClaim = User.Claims.FirstOrDefault(c => c.Type == "AuctioneerId");
-            //if (auctioneerIdClaim == null)
-            //    return Unauthorized(new { message = "Auctioneer ID is missing in token." });
+            // Retrieve the AuctioneerId from JWT claims
+            var auctioneerIdClaim = User.Claims.FirstOrDefault(c => c.Type == "AuctioneerId");
+            if (auctioneerIdClaim == null)
+                return Unauthorized(new { message = "Auctioneer ID is missing in token." });
 
-            //if (!int.TryParse(auctioneerIdClaim.Value, out int auctioneerId))
-            //    return BadRequest(new { message = "Invalid Auctioneer ID format." });
+            if (!int.TryParse(auctioneerIdClaim.Value, out int auctioneerId))
+                return BadRequest(new { message = "Invalid Auctioneer ID format." });
 
-            //// Check if the Auctioneer exists
-            //var auctioneerExists = await _userContext.Auctioneers.AnyAsync(a => a.AuctioneerId == auctioneerId);
-            //if (!auctioneerExists)
-            //    return BadRequest(new { message = "Auctioneer not found." });
+          
+            var auctioneerExists = await _userContext.Auctioneers.AnyAsync(a => a.AuctioneerId == auctioneerId);
+            if (!auctioneerExists)
+                return BadRequest(new { message = "Auctioneer not found." });
 
+            
             var product = new Product
             {
                 ProductName = productsDto.ProductName,
@@ -52,7 +49,7 @@ namespace Bidhub.Controllers
                 OwnerPhoneNo = productsDto.OwnerPhoneNo,
                 ReservePrice = productsDto.ReservePrice,
                 Location = productsDto.Location,
-                
+                AuctioneerId = auctioneerId 
             };
 
             _userContext.Products.Add(product);

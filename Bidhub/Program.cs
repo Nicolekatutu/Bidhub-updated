@@ -8,116 +8,112 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services to the container
 
-//JWT authentication configuration
+// Database Configuration
+builder.Services.AddDbContext<UserContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("UserContext")));
+
+// Identity Configuration
+builder.Services.AddIdentity<User, IdentityRole<Guid>>()
+    .AddEntityFrameworkStores<UserContext>()
+    .AddDefaultTokenProviders();
+
+// JWT Authentication Configuration
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 })
-    .AddJwtBearer(options =>
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
-        };
-    });
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+    };
+});
 
-// (Add Identity) Register Identity services
-builder.Services.AddIdentity<User, IdentityRole<Guid>>()
-    .AddEntityFrameworkStores<UserContext>()
-    .AddDefaultTokenProviders();
-
-
-builder.Services.AddControllers();
-
+// Identity Options Configuration
 builder.Services.Configure<IdentityOptions>(options =>
 {
     options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 });
 
+// CORS Configuration
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policyBuilder =>
+    {
+        policyBuilder.WithOrigins("http://localhost:5173") // React app URL
+                      .AllowAnyHeader()
+                      .AllowAnyMethod();
+    });
+});
 
-// serialization
+// Add Controllers with JSON Options
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.Preserve);
 
-//Authorizattion services
-builder.Services.AddAuthorization();
-
-// Add services to the container.
-builder.Services.AddDbContext<UserContext>(options =>
-options.UseSqlServer(builder.Configuration.GetConnectionString("UserContext"))
-);
-
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowReactApp", builder =>
-    {
-        builder.WithOrigins("http://localhost:5173") // React app URL
-               .AllowAnyHeader()
-               .AllowAnyMethod();
-    });
-});
-
+// Add Swagger Configuration
 builder.Services.AddSwaggerGen(s =>
 {
-    // these configs enable placing token in swagger
-    s.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    s.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "jwtToken_Auth_API",
+        Title = "Bidhub API",
         Version = "v1"
     });
-    s.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+
+    s.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer",
         BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "Enter token here as: Bearer[space] your-token"
+        In = ParameterLocation.Header,
+        Description = "Enter 'Bearer' followed by your JWT token."
     });
-    s.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement {
+
+    s.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
         {
             new OpenApiSecurityScheme
             {
                 Reference = new OpenApiReference
                 {
                     Type = ReferenceType.SecurityScheme,
-                    Id="Bearer"
+                    Id = "Bearer"
                 }
             },
-            new string[] { }
+            Array.Empty<string>() // No specific scopes
         }
     });
-
 });
 
-builder.Services.AddControllers();
+// Add Authorization Middleware
+builder.Services.AddAuthorization();
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
+// Build the app
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
 app.UseCors("AllowReactApp");
 
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
-
 app.UseAuthorization();
 
 app.MapControllers();

@@ -20,73 +20,67 @@ namespace Bidhub.Controllers
         }
 
         [HttpPost("images")] // api/main/uploadFile
-        //public IActionResult Upload(IFormFile file)
-        public IActionResult Upload(ProductPhotosDTO productpic)
+        public async Task<IActionResult> Upload(ProductPhotosDTO model)
         {
+            // Validate that the file exists
+            if (model.PhotoUrl == null || model.PhotoUrl.Length == 0)
+            {
+                return BadRequest("No file uploaded.");
+            }
+
             // Validate file extension
             List<string> validExtensions = new List<string> { ".jpg", ".png" };
-            string extension = Path.GetExtension(productpic.PhotoUrl.FileName);
+            string extension = Path.GetExtension(model.PhotoUrl.FileName).ToLower();
             if (!validExtensions.Contains(extension))
             {
-                return BadRequest($"Extension is not valid ({string.Join(", ", validExtensions)})");
+                return BadRequest($"Invalid file extension. Allowed extensions: {string.Join(", ", validExtensions)}");
             }
-
-
 
             // Validate file size
-            long size = productpic.PhotoUrl.Length;
-            if (size > (5 * 1024 * 1024))
+            long size = model.PhotoUrl.Length;
+            if (size > (5 * 1024 * 1024)) // 5 MB
             {
-                return BadRequest("Maximum size can be 5MB");
+                return BadRequest("File size cannot exceed 5MB.");
             }
 
-            // Ensure WebRootPath is not null
-            if (string.IsNullOrEmpty(_webHostEnvironment.WebRootPath))
+            // Define upload directory
+            var uploadsDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
+            if (!Directory.Exists(uploadsDirectory))
             {
-                return StatusCode(500, "Web root path is not configured.");
+                Directory.CreateDirectory(uploadsDirectory);
             }
 
-            // Generate a new filename
-            string fileName = Guid.NewGuid().ToString() + extension;
-            string uploadDir = Path.Combine(_webHostEnvironment.WebRootPath, "Uploads/images");
+            // Create a unique file name
+            var fileName = Guid.NewGuid().ToString() + Path.GetExtension(model.PhotoUrl.FileName);
+            var filePath = Path.Combine(uploadsDirectory, fileName);
 
             try
             {
-                // Create directory if it doesn't exist
-                if (!Directory.Exists(uploadDir))
-                {
-                    Directory.CreateDirectory(uploadDir);
-                }
-
-                string filePath = Path.Combine(uploadDir, fileName);
-
                 // Save the file
                 using (var stream = new FileStream(filePath, FileMode.Create))
                 {
-                    productpic.PhotoUrl.CopyTo(stream);
+                    await model.PhotoUrl.CopyToAsync(stream);
                 }
-
-                // Generate the URL for the uploaded file
-                string fileUrl = $"{Request.Scheme}://{Request.Host}/Uploads/images/{fileName}";
 
                 // Save the file information to the database
                 var productPic = new ProductPhoto
                 {
-                    PhotoUrl = fileUrl,
-                    ProductId = productpic.ProductId // This should now exist in the Products table
+                    PhotoUrl = $"/Uploads/{fileName}", // Relative path to access the file
+                    ProductId = model.ProductId // Assuming this matches an existing product
                 };
                 _userContext.ProductPhotos.Add(productPic);
-                _userContext.SaveChanges();
+                await _userContext.SaveChangesAsync();
 
-                return Ok(new { fileUrl });
+                return Ok(new { FileUrl = $"/Uploads/{fileName}" });
             }
             catch (Exception ex)
             {
-                // Log the error for debugging
+                // Log the error and return a 500 status
                 Console.WriteLine(ex.Message);
                 return StatusCode(500, "An error occurred while uploading the file.");
             }
         }
+
         // GET: api/Auctioneers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductPhotosDTO>>> Getproductpic()

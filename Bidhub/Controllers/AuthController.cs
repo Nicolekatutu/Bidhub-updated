@@ -42,19 +42,19 @@ namespace Bidhub.Controllers
         [HttpPost("register-bidder")]
         public async Task<IActionResult> RegisterBidder([FromBody] BidderRegisterDto model)
         {
-            // Check if the model is valid
+           
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
             }
 
-            // Password confirmation check
+            
             if (model.Password != model.ConfirmPassword)
             {
                 return BadRequest(new { message = "Password and Confirm Password do not match." });
             }
 
-            // Create user
+            
             var user = new User
             {
                 FirstName = model.FirstName,
@@ -72,7 +72,7 @@ namespace Bidhub.Controllers
                 return BadRequest(result.Errors);
             }
 
-            // Create bidder entry
+            
             var bidder = new Bidders
             {
                 UserId = user.Id,
@@ -328,32 +328,66 @@ namespace Bidhub.Controllers
 
 
 
+        //    private string GenerateJwtToken(User user)
+        //    {
+        //        // Retrieve AuctioneerId associated with the user, if it exists
+        //        var auctioneer = _userContext.Auctioneers.FirstOrDefault(a => a.UserId == user.UserId);
+        //        var auctioneerId = auctioneer?.AuctioneerId.ToString() ?? string.Empty;
+
+        //        var claims = new[]
+        //        {
+        //    new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
+        //    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+        //    new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+        //    new Claim(ClaimTypes.Email, user.Email),
+        //    new Claim("AuctioneerId", auctioneerId) 
+        //};
+
+        //        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+        //        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        //        var token = new JwtSecurityToken(
+        //            issuer: _config["Jwt:Issuer"],
+        //            audience: _config["Jwt:Audience"],
+        //            claims: claims,
+        //            expires: DateTime.Now.AddMinutes(60),
+        //            signingCredentials: creds);
+
+        //        return new JwtSecurityTokenHandler().WriteToken(token);
+        //    }
+
         private string GenerateJwtToken(User user)
         {
+            
+            var auctioneer = _userContext.Auctioneers.FirstOrDefault(a => a.UserId == user.Id);
+
+            var auctioneerId = auctioneer?.AuctioneerId.ToString() ?? string.Empty;
+
+            // Define claims for the JWT token
             var claims = new[]
             {
-        new Claim(JwtRegisteredClaimNames.Sub, user.UserName),
-        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-        new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-        new Claim(ClaimTypes.Email, user.Email), // Ensure this claim is added
+        new Claim(JwtRegisteredClaimNames.Sub, user.UserName), 
+        new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), 
+        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        new Claim(ClaimTypes.Email, user.Email), 
+        new Claim("AuctioneerId", auctioneerId) 
     };
 
+           
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+            // Create the JWT token
             var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.UtcNow.AddMinutes(60),
-                signingCredentials: creds);
+                issuer: _config["Jwt:Issuer"], 
+                audience: _config["Jwt:Audience"], 
+                claims: claims, 
+                expires: DateTime.Now.AddMinutes(60), 
+                signingCredentials: creds 
+            );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-
-
-
-
 
 
     }

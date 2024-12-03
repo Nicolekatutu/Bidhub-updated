@@ -21,75 +21,70 @@ namespace Bidhub.Controllers
         }
 
         [HttpPost("documents")] // api/main/uploadFile
-        public IActionResult Upload(ProductDocDTO productdoc, string fileName)
+        public IActionResult Upload(ProductDocDTO productdoc)
         {
-            // Validate file extension
-            List<string> validExtensions = new List<string> { ".pdf", ".ppt" };
-            string extension = Path.GetExtension(productdoc.DocumentUrl.FileName);
-            if (!validExtensions.Contains(extension))
+            // Validate the file exists
+            if (productdoc.DocumentUrl == null)
             {
-                return BadRequest($"Extension is not valid ({string.Join(", ", validExtensions)})");
+                return BadRequest("No file uploaded.");
             }
 
-            if (productdoc.DocumentUrl == null || string.IsNullOrEmpty(fileName))
+            // Validate file extension
+            List<string> validExtensions = new List<string> { ".pdf", ".ppt" };
+            string extension = Path.GetExtension(productdoc.DocumentUrl.FileName).ToLower();
+            if (!validExtensions.Contains(extension))
             {
-                return BadRequest("File or file name is missing.");
+                return BadRequest($"Invalid file extension. Allowed extensions: {string.Join(", ", validExtensions)}");
             }
 
             // Validate file size
             long size = productdoc.DocumentUrl.Length;
-            if (size > (5 * 1024 * 1024))
+            if (size > (5 * 1024 * 1024)) // 5 MB
             {
-                return BadRequest("Maximum size can be 5MB");
+                return BadRequest("File size cannot exceed 5MB.");
             }
 
-            // Ensure WebRootPath is not null
-            if (string.IsNullOrEmpty(_webHostEnvironment.WebRootPath))
+            // Define upload directory
+            var uploadsDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Uploads/documents");
+            if (!Directory.Exists(uploadsDirectory))
             {
-                return StatusCode(500, "Web root path is not configured.");
+                Directory.CreateDirectory(uploadsDirectory);
             }
 
-            string uploadDir = Path.Combine(_webHostEnvironment.WebRootPath, "Uploads/documents");
+            // Create a unique file name
+            var fileName = Guid.NewGuid().ToString() + extension;
+            var filePath = Path.Combine(uploadsDirectory, fileName);
 
             try
             {
-                // Create directory if it doesn't exist
-                if (!Directory.Exists(uploadDir))
-                {
-                    Directory.CreateDirectory(uploadDir);
-                }
-
-                string filePath = Path.Combine(uploadDir, fileName);
-
                 // Save the file
                 using (var stream = new FileStream(filePath, FileMode.Create))
                 {
                     productdoc.DocumentUrl.CopyTo(stream);
                 }
 
-                // Generate the URL for the uploaded file
-                string fileUrl = $"{Request.Scheme}://{Request.Host}/Uploads/documents/{fileName}";
-
                 // Save the file information to the database
                 var productDoc = new ProductDocument
                 {
-                    DocumentType = fileName,
-                    DocumentUrl = fileUrl,
-                    ProductId = productdoc.ProductId // This should now exist in the Products table
-
+                    DocumentType = Path.GetFileNameWithoutExtension(fileName), // Optional: Extract name without extension
+                    DocumentUrl = $"/Uploads/documents/{fileName}", // Relative path to access the file
+                    ProductId = productdoc.ProductId // Assuming this matches an existing product
                 };
                 _userContext.ProductDocuments.Add(productDoc);
                 _userContext.SaveChanges();
 
-                return Ok(new { fileName, fileUrl });
+                // Return success with file details
+                return Ok(new { FileName = fileName, FileUrl = $"/Uploads/documents/{fileName}" });
             }
             catch (Exception ex)
             {
-                // Log the error for debugging
+                // Log the error and return a 500 status
                 Console.WriteLine(ex.Message);
                 return StatusCode(500, "An error occurred while uploading the file.");
             }
         }
+
+
         // GET: api/Auctioneers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductRtnDocDTO>>> GetProductDoc()
